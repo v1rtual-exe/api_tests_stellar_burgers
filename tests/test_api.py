@@ -9,40 +9,37 @@ from data import BASE_URL, TEST_USER, ORDER_INGREDIENTS
 @allure.feature('Создание пользователя')
 class TestCreateUser:
 
-    @allure.step('Создание уникального пользователя')
-    def test_create_unique_user(self, create_user, delete_user):
+    @allure.step('Регистрация пользователя')
+    def register_user(self, email, password, name):
+        payload = {'email': email, 'password': password, 'name': name}
+        return requests.post(f'{BASE_URL}/auth/register', json=payload)
+
+    @allure.title('Создание уникального пользователя')
+    def test_create_unique_user(self, create_user, delete_user_after_test):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
-        payload = {
-            'email': email,
-            'password': TEST_USER['password'],
-            'name': TEST_USER['name']
-        }
         
-        response = create_user(email, payload['password'], payload['name'])
+        response = self.register_user(email, TEST_USER['password'], TEST_USER['name'])
+        
+        access_token = response.json().get('accessToken')
+        if access_token:
+            delete_user_after_test.append(access_token)
         
         assert response.status_code == 200
         assert response.json()['success'] is True
-        
-        delete_user(response.json()['accessToken'])
 
-    @allure.step('Создание пользователя, который уже зарегистрирован')
+    @allure.title('Создание пользователя, который уже зарегистрирован')
     def test_create_existing_user(self, create_user):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
-        payload = {
-            'email': email,
-            'password': TEST_USER['password'],
-            'name': TEST_USER['name']
-        }
         
-        create_user(email, payload['password'], payload['name'])
-        response = create_user(email, payload['password'], payload['name'])
+        create_user(email, TEST_USER['password'], TEST_USER['name'])
+        response = create_user(email, TEST_USER['password'], TEST_USER['name'])
         
         assert response.status_code == 403
         assert response.json()['message'] == 'User already exists'
 
-    @allure.step('Создание пользователя без одного из обязательных полей')
+    @allure.title('Создание пользователя без одного из обязательных полей')
     @pytest.mark.parametrize('missing_field', ['email', 'password', 'name'])
-    def test_create_user_missing_field(self, create_user, missing_field):
+    def test_create_user_missing_field(self, missing_field):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         payload = {
             'email': email,
@@ -51,7 +48,7 @@ class TestCreateUser:
         }
         del payload[missing_field]
         
-        response = create_user(payload.get('email'), payload.get('password'), payload.get('name'))
+        response = requests.post(f'{BASE_URL}/auth/register', json=payload)
         
         assert response.status_code == 403
         assert response.json()['message'] == 'Email, password and name are required fields'
@@ -60,22 +57,28 @@ class TestCreateUser:
 @allure.feature('Логин пользователя')
 class TestLoginUser:
 
-    @allure.step('Логин под существующим пользователем')
-    def test_login_existing_user(self, create_user, delete_user):
+    @allure.step('Логин пользователя')
+    def login_user(self, email, password):
+        payload = {'email': email, 'password': password}
+        return requests.post(f'{BASE_URL}/auth/login', json=payload)
+
+    @allure.title('Логин под существующим пользователем')
+    def test_login_existing_user(self, create_user, delete_user_after_test):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         password = TEST_USER['password']
         
         create_user(email, password, TEST_USER['name'])
         
-        login_payload = {'email': email, 'password': password}
-        response = requests.post(f'{BASE_URL}/auth/login', json=login_payload)
+        response = self.login_user(email, password)
+        
+        access_token = response.json().get('accessToken')
+        if access_token:
+            delete_user_after_test.append(access_token)
         
         assert response.status_code == 200
         assert response.json()['success'] is True
-        
-        delete_user(response.json()['accessToken'])
 
-    @allure.step('Логин с неверным логином и паролем')
+    @allure.title('Логин с неверным логином и паролем')
     def test_login_invalid_credentials(self):
         payload = {'email': 'wrong@yandex.ru', 'password': 'wrongpassword'}
         response = requests.post(f'{BASE_URL}/auth/login', json=payload)
@@ -87,6 +90,7 @@ class TestLoginUser:
 @allure.feature('Создание заказа')
 class TestCreateOrder:
 
+    @allure.step('Получение ингредиентов')
     def get_ingredients(self):
         response = requests.get(f'{BASE_URL}/ingredients')
         if response.status_code == 200:
@@ -94,74 +98,69 @@ class TestCreateOrder:
             return [ingredient['_id'] for ingredient in ingredients[:2]]
         return ORDER_INGREDIENTS
 
-    @allure.step('Создание заказа с авторизацией')
-    def test_create_order_with_auth(self, create_user, delete_user):
+    @allure.step('Создание заказа')
+    def create_order(self, ingredients, token=None):
+        headers = {'Authorization': token} if token else {}
+        payload = {'ingredients': ingredients}
+        return requests.post(f'{BASE_URL}/orders', json=payload, headers=headers)
+
+    @allure.title('Создание заказа с авторизацией')
+    def test_create_order_with_auth(self, create_user, delete_user_after_test):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         response = create_user(email, TEST_USER['password'], TEST_USER['name'])
-        access_token = response.json()['accessToken']
-        headers = {'Authorization': access_token}
+        access_token = response.json().get('accessToken')
+        if access_token:
+            delete_user_after_test.append(access_token)
         
         ingredient_ids = self.get_ingredients()
-        order_payload = {'ingredients': ingredient_ids}
-        
-        response = requests.post(f'{BASE_URL}/orders', json=order_payload, headers=headers)
+        response = self.create_order(ingredient_ids, access_token)
         
         assert response.status_code == 200
         assert response.json()['success'] is True
-        
-        delete_user(access_token)
 
-    @allure.step('Создание заказа без авторизации')
+    @allure.title('Создание заказа без авторизации')
     def test_create_order_without_auth(self):
         ingredient_ids = self.get_ingredients()
-        order_payload = {'ingredients': ingredient_ids}
-        response = requests.post(f'{BASE_URL}/orders', json=order_payload)
+        response = self.create_order(ingredient_ids)
         
         assert response.status_code == 200
         assert response.json()['success'] is True
 
-    @allure.step('Создание заказа с ингредиентами')
-    def test_create_order_with_ingredients(self, create_user, delete_user):
+    @allure.title('Создание заказа с ингредиентами')
+    def test_create_order_with_ingredients(self, create_user, delete_user_after_test):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         response = create_user(email, TEST_USER['password'], TEST_USER['name'])
-        access_token = response.json()['accessToken']
-        headers = {'Authorization': access_token}
+        access_token = response.json().get('accessToken')
+        if access_token:
+            delete_user_after_test.append(access_token)
         
         ingredient_ids = self.get_ingredients()
-        order_payload = {'ingredients': ingredient_ids}
-        
-        response = requests.post(f'{BASE_URL}/orders', json=order_payload, headers=headers)
+        response = self.create_order(ingredient_ids, access_token)
         
         assert response.status_code == 200
         assert len(response.json()['order']['ingredients']) == 2
-        
-        delete_user(access_token)
 
-    @allure.step('Создание заказа без ингредиентов')
-    def test_create_order_no_ingredients(self, create_user, delete_user):
+    @allure.title('Создание заказа без ингредиентов')
+    def test_create_order_no_ingredients(self, create_user, delete_user_after_test):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         response = create_user(email, TEST_USER['password'], TEST_USER['name'])
-        access_token = response.json()['accessToken']
-        headers = {'Authorization': access_token}
+        access_token = response.json().get('accessToken')
+        if access_token:
+            delete_user_after_test.append(access_token)
         
-        order_payload = {'ingredients': []}
-        response = requests.post(f'{BASE_URL}/orders', json=order_payload, headers=headers)
+        response = self.create_order([], access_token)
         
         assert response.status_code == 400
         assert response.json()['message'] == 'Ingredient ids must be provided'
-        
-        delete_user(access_token)
 
-    @allure.step('Создание заказа с неверным хешем ингредиентов')
-    def test_create_order_invalid_ingredient_hash(self, create_user, delete_user):
+    @allure.title('Создание заказа с неверным хешем ингредиентов')
+    def test_create_order_invalid_ingredient_hash(self, create_user, delete_user_after_test):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         response = create_user(email, TEST_USER['password'], TEST_USER['name'])
-        access_token = response.json()['accessToken']
-        headers = {'Authorization': access_token}
+        access_token = response.json().get('accessToken')
+        if access_token:
+            delete_user_after_test.append(access_token)
         
-        order_payload = {'ingredients': ['invalid_hash_1', 'invalid_hash_2']}
-        response = requests.post(f'{BASE_URL}/orders', json=order_payload, headers=headers)
+        response = self.create_order(['invalid_hash_1', 'invalid_hash_2'], access_token)
         
         assert response.status_code == 500
-        
-        delete_user(access_token)
