@@ -4,21 +4,17 @@ import requests
 import random
 
 from data import BASE_URL, TEST_USER, ORDER_INGREDIENTS
+from api_client import register_user, login_user, create_order, get_ingredients
 
 
 @allure.feature('Создание пользователя')
 class TestCreateUser:
 
-    @allure.step('Регистрация пользователя')
-    def register_user(self, email, password, name):
-        payload = {'email': email, 'password': password, 'name': name}
-        return requests.post(f'{BASE_URL}/auth/register', json=payload)
-
     @allure.title('Создание уникального пользователя')
     def test_create_unique_user(self, create_user, delete_user_after_test):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         
-        response = self.register_user(email, TEST_USER['password'], TEST_USER['name'])
+        response = register_user(email, TEST_USER['password'], TEST_USER['name'])
         
         access_token = response.json().get('accessToken')
         if access_token:
@@ -57,11 +53,6 @@ class TestCreateUser:
 @allure.feature('Логин пользователя')
 class TestLoginUser:
 
-    @allure.step('Логин пользователя')
-    def login_user(self, email, password):
-        payload = {'email': email, 'password': password}
-        return requests.post(f'{BASE_URL}/auth/login', json=payload)
-
     @allure.title('Логин под существующим пользователем')
     def test_login_existing_user(self, create_user, delete_user_after_test):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
@@ -69,7 +60,7 @@ class TestLoginUser:
         
         create_user(email, password, TEST_USER['name'])
         
-        response = self.login_user(email, password)
+        response = login_user(email, password)
         
         access_token = response.json().get('accessToken')
         if access_token:
@@ -90,20 +81,6 @@ class TestLoginUser:
 @allure.feature('Создание заказа')
 class TestCreateOrder:
 
-    @allure.step('Получение ингредиентов')
-    def get_ingredients(self):
-        response = requests.get(f'{BASE_URL}/ingredients')
-        if response.status_code == 200:
-            ingredients = response.json()['data']
-            return [ingredient['_id'] for ingredient in ingredients[:2]]
-        return ORDER_INGREDIENTS
-
-    @allure.step('Создание заказа')
-    def create_order(self, ingredients, token=None):
-        headers = {'Authorization': token} if token else {}
-        payload = {'ingredients': ingredients}
-        return requests.post(f'{BASE_URL}/orders', json=payload, headers=headers)
-
     @allure.title('Создание заказа с авторизацией')
     def test_create_order_with_auth(self, create_user, delete_user_after_test):
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
@@ -112,16 +89,16 @@ class TestCreateOrder:
         if access_token:
             delete_user_after_test.append(access_token)
         
-        ingredient_ids = self.get_ingredients()
-        response = self.create_order(ingredient_ids, access_token)
+        ingredient_ids = get_ingredients()
+        response = create_order(ingredient_ids, access_token)
         
         assert response.status_code == 200
         assert response.json()['success'] is True
 
     @allure.title('Создание заказа без авторизации')
     def test_create_order_without_auth(self):
-        ingredient_ids = self.get_ingredients()
-        response = self.create_order(ingredient_ids)
+        ingredient_ids = get_ingredients()
+        response = create_order(ingredient_ids)
         
         assert response.status_code == 200
         assert response.json()['success'] is True
@@ -134,8 +111,8 @@ class TestCreateOrder:
         if access_token:
             delete_user_after_test.append(access_token)
         
-        ingredient_ids = self.get_ingredients()
-        response = self.create_order(ingredient_ids, access_token)
+        ingredient_ids = get_ingredients()
+        response = create_order(ingredient_ids, access_token)
         
         assert response.status_code == 200
         assert len(response.json()['order']['ingredients']) == 2
@@ -148,7 +125,7 @@ class TestCreateOrder:
         if access_token:
             delete_user_after_test.append(access_token)
         
-        response = self.create_order([], access_token)
+        response = create_order([], access_token)
         
         assert response.status_code == 400
         assert response.json()['message'] == 'Ingredient ids must be provided'
@@ -161,6 +138,6 @@ class TestCreateOrder:
         if access_token:
             delete_user_after_test.append(access_token)
         
-        response = self.create_order(['invalid_hash_1', 'invalid_hash_2'], access_token)
+        response = create_order(['invalid_hash_1', 'invalid_hash_2'], access_token)
         
         assert response.status_code == 500
