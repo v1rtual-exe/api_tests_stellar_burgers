@@ -17,8 +17,7 @@ class TestCreateUser:
         response = register_user(email, TEST_USER['password'], TEST_USER['name'])
         
         access_token = response.json().get('accessToken')
-        if access_token:
-            delete_user_after_test.append(access_token)
+        delete_user_after_test.append(access_token)
         
         assert response.status_code == 200
         assert response.json()['success'] is True
@@ -63,8 +62,7 @@ class TestLoginUser:
         response = login_user(email, password)
         
         access_token = response.json().get('accessToken')
-        if access_token:
-            delete_user_after_test.append(access_token)
+        delete_user_after_test.append(access_token)
         
         assert response.status_code == 200
         assert response.json()['success'] is True
@@ -86,8 +84,7 @@ class TestCreateOrder:
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         response = create_user(email, TEST_USER['password'], TEST_USER['name'])
         access_token = response.json().get('accessToken')
-        if access_token:
-            delete_user_after_test.append(access_token)
+        delete_user_after_test.append(access_token)
         
         ingredient_ids = get_ingredients()
         response = create_order(ingredient_ids, access_token)
@@ -108,8 +105,7 @@ class TestCreateOrder:
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         response = create_user(email, TEST_USER['password'], TEST_USER['name'])
         access_token = response.json().get('accessToken')
-        if access_token:
-            delete_user_after_test.append(access_token)
+        delete_user_after_test.append(access_token)
         
         ingredient_ids = get_ingredients()
         response = create_order(ingredient_ids, access_token)
@@ -122,8 +118,7 @@ class TestCreateOrder:
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         response = create_user(email, TEST_USER['password'], TEST_USER['name'])
         access_token = response.json().get('accessToken')
-        if access_token:
-            delete_user_after_test.append(access_token)
+        delete_user_after_test.append(access_token)
         
         response = create_order([], access_token)
         
@@ -135,8 +130,7 @@ class TestCreateOrder:
         email = f'test_{random.randint(1000, 9999)}@yandex.ru'
         response = create_user(email, TEST_USER['password'], TEST_USER['name'])
         access_token = response.json().get('accessToken')
-        if access_token:
-            delete_user_after_test.append(access_token)
+        delete_user_after_test.append(access_token)
         
         response = create_order(['invalid_hash_1', 'invalid_hash_2'], access_token)
         

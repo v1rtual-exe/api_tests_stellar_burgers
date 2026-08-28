@@ -21,8 +21,9 @@ def create_user():
 def delete_user():
     """Фикстура для удаления пользователя по токену"""
     def _delete_user(access_token):
-        headers = {'Authorization': access_token}
-        requests.delete(f'{BASE_URL}/auth/user', headers=headers)
+        if access_token:
+            headers = {'Authorization': access_token}
+            requests.delete(f'{BASE_URL}/auth/user', headers=headers)
     return _delete_user
 
 
